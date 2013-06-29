@@ -20,40 +20,53 @@ describe "macaddress fact" do
   end
 
   describe "when run on Linux" do
+    before :each do
+      Facter.fact(:kernel).stubs(:value).returns("Linux")
+      Facter.fact(:operatingsystem).stubs(:value).returns("Linux")
+      Facter::Util::IP.stubs(:get_ifconfig).returns("/sbin/ifconfig")
+    end
+
     describe "with /sys available" do
       before :each do
-        Facter.fact(:kernel).stubs(:value).returns("Linux")
-        Facter.fact(:operatingsystem).stubs(:value).returns("Linux")
+        Dir.stubs(:glob).returns( [ '/sys/class/net/lo', '/sys/class/net/eth0', '/sys/class/net/eth1' ])
+        File.stubs(:read).with('/sys/class/net/lo/address').returns("00:00:00:00:00:00\n")
+        File.stubs(:read).with('/sys/class/net/eth0/address').returns("00:12:3f:be:22:01\n")
+        File.stubs(:read).with('/sys/class/net/eth1/address').returns("00:12:3f:be:22:02\n")
       end
 
       it "should glob /sys/class/net" do
-        Dir.expects(:glob).with('/sys/class/net/*').returns([ '/sys/class/net/eth0', '/sys/class/net/lo' ])
-        File.stubs(:read).returns( "00:12:3f:be:22:01\n" )
+        Dir.expects(:glob).with('/sys/class/net/*').returns([ '/sys/class/net/lo', '/sys/class/net/eth0' ])
 
         Facter.value(:macaddress)
       end
 
       it "should open the address file of the first interface" do
-        Dir.stubs(:glob).returns([ '/sys/class/net/eth0', '/sys/class/net/lo' ])
-        File.expects(:read).with('/sys/class/net/eth0/address').returns( "00:12:3f:be:22:01\n" )
+        File.expects(:read).with('/sys/class/net/lo/address').returns( "00:00:00:00:00:00\n" )
 
         Facter.value(:macaddress)
       end
 
 
-      it "should return the macaddress of the first interface" do
-        Dir.stubs(:glob).returns( [ '/sys/class/net/eth0', '/sys/class/net/lo' ])
-        File.stubs(:read).returns( "00:12:3f:be:22:01\n" )
+      it "should open the address file of the second interface" do
+        File.expects(:read).with('/sys/class/net/eth0/address').returns( "00:12:3f:be:22:01\n" )
 
+        Facter.value(:macaddress)
+      end
+
+      it "should not open the address file of the third interface" do
+        File.expects(:read).with('/sys/class/net/eth1/address').returns( "00:12:3f:be:22:02\n" ).never
+
+        Facter.value(:macaddress)
+      end
+
+
+      it "should return the macaddress of the first non-00:00:00:00:00:00 interface" do
         Facter.value(:macaddress).should == "00:12:3f:be:22:01"
       end
     end
 
     describe "without /sys available" do
       before :each do
-        Facter.fact(:kernel).stubs(:value).returns("Linux")
-        Facter.fact(:operatingsystem).stubs(:value).returns("Linux")
-        Facter::Util::IP.stubs(:get_ifconfig).returns("/sbin/ifconfig")
         Dir.stubs(:glob).with('/sys/class/net/*').returns([])
       end
 

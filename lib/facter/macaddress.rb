@@ -15,8 +15,12 @@ Facter.add(:macaddress) do
   has_weight  10                # about an order of magnitude faster
   setcode do
     begin
-      path = Dir.glob('/sys/class/net/*').reject {|x| x[-3..-1] == '/lo' }.first
-      path and File.read(path + '/address').chomp
+      mac = nil
+      Dir.glob('/sys/class/net/*').each do |path|
+        mac = File.read(path + "/address").chomp
+        break if mac != '00:00:00:00:00:00'
+      end
+      mac
     rescue Exception
       nil
     end
